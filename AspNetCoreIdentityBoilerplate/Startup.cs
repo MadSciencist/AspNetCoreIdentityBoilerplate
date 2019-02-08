@@ -23,7 +23,7 @@ namespace AspNetCoreIdentityBoilerplate
         public void ConfigureServices(IServiceCollection services)
         {
             AddAuthentication(services);
-
+            services.AddTransient<ITokenBuilder, TokenBuilder>();
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
         }
 
