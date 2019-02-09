@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace AspNetCoreIdentityBoilerplate.Infrastructure
 {
-    public class AppIdentityDbContext : IdentityDbContext<AppUser>
+    public class AppIdentityDbContext : IdentityDbContext<AppUser, AppRole, int>
     {
         public AppIdentityDbContext(DbContextOptions<AppIdentityDbContext> options) : base(options)
         {
@@ -19,12 +19,12 @@ namespace AspNetCoreIdentityBoilerplate.Infrastructure
             using (var scope = provider.CreateScope())
             {
                 var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<AppRole>>();
 
                 if (!await roleManager.RoleExistsAsync("admin") && !await roleManager.RoleExistsAsync("user"))
                 {
-                    await roleManager.CreateAsync(new IdentityRole("admin"));
-                    await roleManager.CreateAsync(new IdentityRole("user"));
+                    await roleManager.CreateAsync(new AppRole("admin"));
+                    await roleManager.CreateAsync(new AppRole("user"));
                 }
 
                 if (await userManager.FindByNameAsync("admin") != null) return;

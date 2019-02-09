@@ -37,7 +37,7 @@ namespace AspNetCoreIdentityBoilerplate
 
             services.AddDbContext<AppIdentityDbContext>(options => { options.UseSqlServer(connectionString); });
 
-            services.AddIdentity<AppUser, IdentityRole>(options =>
+            services.AddIdentity<AppUser, AppRole>(options =>
                 {
                     options.Password.RequiredLength = 5; // Sample validator
                     options.Password.RequireNonAlphanumeric = false;
@@ -47,9 +47,13 @@ namespace AspNetCoreIdentityBoilerplate
                 })
                 .AddEntityFrameworkStores<AppIdentityDbContext>()
                 .AddDefaultTokenProviders()
-                .AddRoles<IdentityRole>();
+                .AddRoles<AppRole>();
 
-            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                })
                 .AddJwtBearer(options =>
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
@@ -66,7 +70,6 @@ namespace AspNetCoreIdentityBoilerplate
                     });
 
             services.AddAuthorization();
-
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -79,7 +82,6 @@ namespace AspNetCoreIdentityBoilerplate
 
             app.UseAuthentication();
             app.UseMvc();
-
 
             AppIdentityDbContext.SeedRolesAndUser(app.ApplicationServices).Wait();
         }
