@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 using System.Security.Claims;
 using System.Text;
 
@@ -18,14 +19,17 @@ namespace AspNetCoreIdentityBoilerplate.Infrastructure
             _config = config;
         }
 
-        public (string token, DateTime expring) BuildToken(AppUser user)
+        public (string token, DateTime expring) BuildToken(AppUser user, IEnumerable<string> roles)
         {
             var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Jti, user.Id.ToString()),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new Claim(ClaimTypes.Name, user.UserName),
-                new Claim(ClaimTypes.Email, user.Email)
+                new Claim(ClaimTypes.Email, user.Email),
             };
+
+            claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["AuthenticationJwt:Key"]));
             var signingCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

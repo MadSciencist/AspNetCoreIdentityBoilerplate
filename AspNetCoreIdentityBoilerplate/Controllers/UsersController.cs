@@ -1,9 +1,12 @@
-﻿using AspNetCoreIdentityBoilerplate.Infrastructure;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using AspNetCoreIdentityBoilerplate.Infrastructure;
 using AspNetCoreIdentityBoilerplate.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
+using AspNetCoreIdentityBoilerplate.Utils;
 
 namespace AspNetCoreIdentityBoilerplate.Controllers
 {
@@ -29,6 +32,16 @@ namespace AspNetCoreIdentityBoilerplate.Controllers
             _passwordValidator = passwordValidator;
         }
 
+        [HttpGet("{id}")]
+        public async Task<IActionResult> Get(string id)
+        {
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null) return NotFound();
+
+            // TODO dedicated DTO to hide sensitive data
+            return Ok(user);
+        }
+
         [AllowAnonymous]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginModel login, string redirect)
@@ -39,10 +52,10 @@ namespace AspNetCoreIdentityBoilerplate.Controllers
             await _signInManager.SignOutAsync(); // terminate existing session
 
             var signInResult = await _signInManager.PasswordSignInAsync(user, login.Password, false, false);
-
             if (!signInResult.Succeeded) return Unauthorized();
 
-            var (token, expring) = _tokenBuilder.BuildToken(user);
+            var roles = await _userManager.GetRolesAsync(user);
+            var (token, expring) = _tokenBuilder.BuildToken(user, roles);
 
             return Ok(new {access = new {token, expires = expring}, redirect});
         }
@@ -72,7 +85,8 @@ namespace AspNetCoreIdentityBoilerplate.Controllers
             var signInResult = await _signInManager.PasswordSignInAsync(user, register.Password, false, false);
             if (!signInResult.Succeeded) return Unauthorized();
 
-            var (token, expring) = _tokenBuilder.BuildToken(user);
+            var roles = await _userManager.GetRolesAsync(user);
+            var (token, expring) = _tokenBuilder.BuildToken(user, roles);
 
             return CreatedAtAction(nameof(Register), "", new { access = new { token, expires = expring }, redirect });
         }
@@ -83,7 +97,9 @@ namespace AspNetCoreIdentityBoilerplate.Controllers
             var user = await _userManager.FindByIdAsync(id);
             if (user == null) return NotFound();
 
-            // TODO check here if claims matches id
+            // only resource owner can modify it
+            if (id != ClaimsPrincipalHelper.GetClaimedUserIdentifier(User))
+                return Forbid();
 
             var deleteResult = await _userManager.DeleteAsync(user);
             if (!deleteResult.Succeeded) return BadRequest(deleteResult.Errors);
@@ -97,7 +113,9 @@ namespace AspNetCoreIdentityBoilerplate.Controllers
             var user = await _userManager.FindByIdAsync(id);
             if (user == null) return NotFound();
 
-            // TODO check here if claims matches id
+            // only resource owner can modify it
+            if (id != ClaimsPrincipalHelper.GetClaimedUserIdentifier(User))
+                return Forbid();
 
             var passwordValidationResult = await _passwordValidator.ValidateAsync(_userManager, user, updatedModel.Password);
             if (!passwordValidationResult.Succeeded) return BadRequest(passwordValidationResult.Errors);
