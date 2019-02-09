@@ -7,22 +7,26 @@ using System.Threading.Tasks;
 
 namespace AspNetCoreIdentityBoilerplate.Controllers
 {
-    [Route("api/[controller]")]
+    [Authorize]
     [ApiController]
+    [Route("api/[controller]")]
     public class UsersController : ControllerBase
     {
+        // TODO create userService to cleanup this mess
         private readonly UserManager<AppUser> _userManager;
         private readonly SignInManager<AppUser> _signInManager;
-        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly IUserValidator<AppUser> _userValidator;
         private readonly ITokenBuilder _tokenBuilder;
+        private readonly IPasswordValidator<AppUser> _passwordValidator;
 
-        public UsersController(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, RoleManager<IdentityRole> roleManager,
-            ITokenBuilder tokenBuilder)
+        public UsersController(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager,
+            ITokenBuilder tokenBuilder, IUserValidator<AppUser> userValidator, IPasswordValidator<AppUser> passwordValidator)
         {
             _userManager = userManager;
             _signInManager = signInManager;
-            _roleManager = roleManager;
             _tokenBuilder = tokenBuilder;
+            _userValidator = userValidator;
+            _passwordValidator = passwordValidator;
         }
 
         [AllowAnonymous]
@@ -30,7 +34,6 @@ namespace AspNetCoreIdentityBoilerplate.Controllers
         public async Task<IActionResult> Login([FromBody] LoginModel login, string redirect)
         {
             var user = await _userManager.FindByNameAsync(login.Login);
-
             if (user == null) return NotFound();
 
             await _signInManager.SignOutAsync(); // terminate existing session
@@ -48,7 +51,11 @@ namespace AspNetCoreIdentityBoilerplate.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterModel register, string redirect)
         {
-            if (await _userManager.FindByNameAsync(register.Login) != null) return BadRequest("User already exists");
+            if (await _userManager.FindByNameAsync(register.Login) != null)
+            {
+                ModelState.AddModelError("", "User with that login already exists.");
+                return BadRequest(ModelState);
+            }
 
             var user = new AppUser
             {
@@ -56,11 +63,11 @@ namespace AspNetCoreIdentityBoilerplate.Controllers
                 UserName = register.Login
             };
 
-            var result =  await _userManager.CreateAsync(user, register.Password);
-            if (!result.Succeeded) return BadRequest(result.Errors);
+            var createResult =  await _userManager.CreateAsync(user, register.Password);
+            if (!createResult.Succeeded) return BadRequest(createResult.Errors);
 
-            var roleResult = await _userManager.AddToRoleAsync(user, "user");
-            if (!roleResult.Succeeded) return BadRequest(roleResult.Errors);
+            var addToRoleResult = await _userManager.AddToRoleAsync(user, "user");
+            if (!addToRoleResult.Succeeded) return BadRequest(addToRoleResult.Errors);
 
             var signInResult = await _signInManager.PasswordSignInAsync(user, register.Password, false, false);
             if (!signInResult.Succeeded) return Unauthorized();
@@ -68,6 +75,43 @@ namespace AspNetCoreIdentityBoilerplate.Controllers
             var (token, expring) = _tokenBuilder.BuildToken(user);
 
             return CreatedAtAction(nameof(Register), "", new { access = new { token, expires = expring }, redirect });
+        }
+
+        [HttpDelete("delete/{id}")]
+        public async Task<IActionResult> Delete(string id)
+        {
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null) return NotFound();
+
+            // TODO check here if claims matches id
+
+            var deleteResult = await _userManager.DeleteAsync(user);
+            if (!deleteResult.Succeeded) return BadRequest(deleteResult.Errors);
+
+            return Ok();
+        }
+
+        [HttpPut("update/{id}")]
+        public async Task<IActionResult> Update([FromBody] RegisterModel updatedModel, string id)
+        {
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null) return NotFound();
+
+            // TODO check here if claims matches id
+
+            var passwordValidationResult = await _passwordValidator.ValidateAsync(_userManager, user, updatedModel.Password);
+            if (!passwordValidationResult.Succeeded) return BadRequest(passwordValidationResult.Errors);
+
+            user.PasswordHash = _userManager.PasswordHasher.HashPassword(user, updatedModel.Password);
+            user.Email = updatedModel.Email;
+
+            var userValidationResult = await _userValidator.ValidateAsync(_userManager, user);
+            if (!userValidationResult.Succeeded) return BadRequest(userValidationResult.Errors);
+
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded) return BadRequest(updateResult.Errors);
+
+            return Ok();
         }
     }
 }
