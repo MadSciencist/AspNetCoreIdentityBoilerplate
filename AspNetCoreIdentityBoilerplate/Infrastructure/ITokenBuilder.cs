@@ -6,6 +6,6 @@ namespace AspNetCoreIdentityBoilerplate.Infrastructure
 {
     public interface ITokenBuilder
     {
-        (string token, DateTime expring) BuildToken(AppUser user, IEnumerable<string> roles);
+        (string token, DateTime expring) Build(AppUser user, IEnumerable<string> roles);
     }
 }

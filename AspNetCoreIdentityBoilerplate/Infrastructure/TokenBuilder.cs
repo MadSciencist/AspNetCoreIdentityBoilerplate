@@ -19,7 +19,7 @@ namespace AspNetCoreIdentityBoilerplate.Infrastructure
             _config = config;
         }
 
-        public (string token, DateTime expring) BuildToken(AppUser user, IEnumerable<string> roles)
+        public (string token, DateTime expring) Build(AppUser user, IEnumerable<string> roles)
         {
             var claims = new List<Claim>
             {

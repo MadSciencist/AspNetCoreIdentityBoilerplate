@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using AspNetCoreIdentityBoilerplate.Utils;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AspNetCoreIdentityBoilerplate.Controllers
@@ -39,6 +40,11 @@ namespace AspNetCoreIdentityBoilerplate.Controllers
         [HttpGet("Auth")]
         public IActionResult Auth()
         {
+            if (!ClaimsPrincipalHelper.IsUserAdmin(User))
+            {
+                return Forbid();
+            }
+
             return Ok();
         }
     }
